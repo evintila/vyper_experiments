@@ -311,6 +311,7 @@ def _dynarray_make_setter(dst, src, hi=None):
             k = IRnode.from_list(i, typ=UINT256_T)
             dst_i = get_element_ptr(dst, k, array_bounds_check=False)
             src_i = get_element_ptr(src, k, array_bounds_check=False)
+            add_evaled_once_metanode(dst_i)
             ret.append(make_setter(dst_i, src_i))
 
         # write the length word after data is copied
@@ -348,6 +349,7 @@ def _dynarray_make_setter(dst, src, hi=None):
             if should_loop:
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ=UINT256_T)
 
+                add_evaled_once_metanode(dst)
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),
                     get_element_ptr(src, i, array_bounds_check=False),
@@ -751,6 +753,9 @@ def eval_once_check(name):
 def ensure_eval_once(name, irnode):
     return ["seq", eval_once_check(_freshname(name)), irnode]
 
+def add_evaled_once_metanode(node: IRnode):
+    metanode = IRnode.from_list(ensure_eval_once("evaled", node))
+    node.set_metanode(metanode)
 
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if ptr.location is None:  # pragma: nocover
@@ -759,11 +764,16 @@ def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if op is None:  # pragma: nocover
         raise CompilerPanic(f"unreachable {ptr.location}")
 
-    store = [op, ptr, val]
-    # don't use eval_once_check for memory, immutables because it interferes
+    # don't use eval_once_check or ptr metanode for memory, immutables because it interferes
     # with optimizer
     if ptr.location in (MEMORY, IMMUTABLES):
+        store = [op, ptr, val]
         return IRnode.from_list(store)
+
+    if ptr.metanode:
+        store = [op, ptr.metanode, val]
+    else:
+        store = [op, ptr, val]
 
     return IRnode.from_list(ensure_eval_once(f"{op}_", store))
 

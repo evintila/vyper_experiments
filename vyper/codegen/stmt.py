@@ -1,3 +1,5 @@
+import os
+
 import vyper.codegen.events as events
 import vyper.utils as util
 from vyper import ast as vy_ast
@@ -15,16 +17,16 @@ from vyper.codegen.core import (
     make_setter,
     potential_overlap,
     wrap_value_for_external_return,
-    writeable,
+    writeable, add_evaled_once_metanode,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.return_ import make_return_stmt
-from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions
+from vyper.exceptions import CodegenPanic, StructureException, TypeCheckFailure, tag_exceptions, CompilerPanic
 from vyper.semantics.types import DArrayT
 from vyper.semantics.types.shortcuts import UINT256_T
 
-
 class Stmt:
+    bug_inserted = False
     def __init__(self, node: vy_ast.VyperNode, context: Context) -> None:
         self.stmt = node
         self.context = context
@@ -75,8 +77,16 @@ class Stmt:
             tmp = self.context.new_internal_variable(src.typ)
             ret.append(make_setter(tmp, src))
             src = tmp
+        add_evaled_once_metanode(dst)
 
-        ret.append(make_setter(dst, src))
+        bug_enabled = os.getenv("INSERT_BUG")
+        if not Stmt.bug_inserted and bug_enabled:
+            # make the assignment twice for some buggy reason
+            print("BUG INSERTED!")
+            ret.append(["seq", make_setter(dst, src), make_setter(dst, src)])
+            Stmt.bug_inserted = True
+        else:
+            ret.append(make_setter(dst, src))
         return IRnode.from_list(ret)
 
     def parse_If(self):
