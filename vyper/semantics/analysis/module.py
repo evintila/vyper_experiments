@@ -632,6 +632,7 @@ class ModuleAnalyzer(VyperNodeVisitorBase):
 
         var_info = VarInfo(
             type_,
+            name=name,
             decl_node=node,
             location=location,
             modifiability=modifiability,

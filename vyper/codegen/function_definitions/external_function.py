@@ -37,7 +37,7 @@ def _register_function_args(func_t: ContractFunctionT, context: Context) -> list
             # allocate a memory slot for it and copy
             dst = context.new_variable(arg.name, arg.typ, is_mutable=False)
 
-            copy_arg = make_setter(dst, arg_ir)
+            copy_arg = make_setter(dst, arg_ir, context)
             copy_arg.ast_source = arg.ast_source
             ret.append(copy_arg)
         else:
@@ -97,7 +97,7 @@ def _generate_kwarg_handlers(
 
             rhs = get_element_ptr(calldata_kwargs_ofst, k, array_bounds_check=False)
 
-            copy_arg = make_setter(lhs, rhs)
+            copy_arg = make_setter(lhs, rhs, context)
             copy_arg.ast_source = arg_meta.ast_source
             ret.append(copy_arg)
 
@@ -107,7 +107,7 @@ def _generate_kwarg_handlers(
             kw_ast_val = func_t.default_values[x.name]  # e.g. `3` in x: int = 3
             rhs = Expr(kw_ast_val, context).ir_node
 
-            copy_arg = make_setter(lhs, rhs)
+            copy_arg = make_setter(lhs, rhs, context)
             copy_arg.ast_source = x.ast_source
             ret.append(copy_arg)
 

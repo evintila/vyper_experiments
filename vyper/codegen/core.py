@@ -195,7 +195,7 @@ def dynarray_data_ptr(ptr):
     return add_ofst(ptr, ptr.location.word_scale)
 
 
-def _dynarray_make_setter(dst, src, hi=None):
+def _dynarray_make_setter(dst, src, context, hi=None):
     assert isinstance(src.typ, DArrayT)
     assert isinstance(dst.typ, DArrayT)
 
@@ -222,7 +222,7 @@ def _dynarray_make_setter(dst, src, hi=None):
             k = IRnode.from_list(i, typ=UINT256_T)
             dst_i = get_element_ptr(dst, k, array_bounds_check=False)
             src_i = get_element_ptr(src, k, array_bounds_check=False)
-            ret.append(make_setter(dst_i, src_i))
+            ret.append(make_setter(dst_i, src_i, context))
 
         # write the length word after data is copied
         store_length = STORE(dst, n_items)
@@ -262,6 +262,7 @@ def _dynarray_make_setter(dst, src, hi=None):
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),
                     get_element_ptr(src, i, array_bounds_check=False),
+                    context,
                     hi=hi,
                 )
                 loop_body.annotation = f"{dst}[i] = {src}[i]"
@@ -394,7 +395,7 @@ def get_dyn_array_count(arg):
     return IRnode.from_list(LOAD(arg), typ=typ)
 
 
-def append_dyn_array(darray_node, elem_node):
+def append_dyn_array(darray_node, elem_node, context):
     assert isinstance(darray_node.typ, DArrayT)
 
     assert darray_node.typ.count > 0, "jerk boy u r out"
@@ -408,7 +409,7 @@ def append_dyn_array(darray_node, elem_node):
             # NOTE: typechecks elem_node
             # NOTE skip array bounds check bc we already asserted len two lines up
             ret.append(
-                make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node)
+                make_setter(get_element_ptr(darray_node, len_, array_bounds_check=False), elem_node, context)
             )
 
             # store new length
@@ -841,6 +842,13 @@ def check_assign(left, right):
     else:  # pragma: no cover
         FAIL()
 
+# TODO: move in memory_allocator
+def use_after_free_check(ptr, context):
+    # check for use-after-free in this context
+    if ptr.location == MEMORY:
+        for var in ptr.referenced_variables_2:
+            if var.name and not context.is_allocated(var):
+                raise CompilerPanic(f"Use-after-free for {var.name} {ptr} {var}")
 
 _label = 0
 
@@ -949,8 +957,10 @@ def read_write_overlap(left, right):
 
 
 # Create an x=y statement, where the types may be compound
-def make_setter(left, right, hi=None):
+def make_setter(left, right, context, hi=None):
     check_assign(left, right)
+    use_after_free_check(left, context)
+    use_after_free_check(right, context)
 
     if potential_overlap(left, right):
         raise CompilerPanic("overlap between src and dst!")
@@ -993,10 +1003,10 @@ def make_setter(left, right, hi=None):
         # TODO rethink/streamline the clamp_basetype logic
         if needs_clamp(right.typ, right.encoding):
             with right.cache_when_complex("arr_ptr") as (b, right):
-                copier = _dynarray_make_setter(left, right, hi=hi)
+                copier = _dynarray_make_setter(left, right, context, hi=hi)
                 ret = b.resolve(["seq", clamp_dyn_array(right, hi=hi), copier])
         else:
-            ret = _dynarray_make_setter(left, right)
+            ret = _dynarray_make_setter(left, right, context)
 
         return IRnode.from_list(ret)
 
@@ -1010,7 +1020,7 @@ def make_setter(left, right, hi=None):
             len_check = ["assert", ["le", item_end, hi]]
             ret.append(len_check)
 
-        ret.append(_complex_make_setter(left, right, hi=hi))
+        ret.append(_complex_make_setter(left, right, context, hi=hi))
         return b1.resolve(IRnode.from_list(ret))
 
 
@@ -1023,7 +1033,7 @@ def copy_opcode_available(left, right):
     return left.location == MEMORY and right.location.has_copy_opcode
 
 
-def _complex_make_setter(left, right, hi=None):
+def _complex_make_setter(left, right, context, hi=None):
     if right.value == "~empty" and left.location == MEMORY:
         # optimized memzero
         return mzero(left, left.typ.memory_bytes_required)
@@ -1107,7 +1117,7 @@ def _complex_make_setter(left, right, hi=None):
         for k in keys:
             l_i = get_element_ptr(left, k, array_bounds_check=False)
             r_i = get_element_ptr(right, k, array_bounds_check=False)
-            ret.append(make_setter(l_i, r_i, hi=hi))
+            ret.append(make_setter(l_i, r_i, context, hi=hi))
 
         return b1.resolve(b2.resolve(IRnode.from_list(ret)))
 
@@ -1122,7 +1132,7 @@ def ensure_in_memory(ir_var, context):
 
     typ = ir_var.typ
     buf = context.new_internal_variable(typ)
-    do_copy = make_setter(buf, ir_var)
+    do_copy = make_setter(buf, ir_var, context)
 
     return IRnode.from_list(["seq", do_copy, buf], typ=typ, location=MEMORY)
 

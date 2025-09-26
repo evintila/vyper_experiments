@@ -136,6 +136,19 @@ class Context:
         self.settings = get_global_settings()
 
         self._to_deallocate = set()
+        self._allocated = list()
+
+    def __del__(self):
+        if len(self._to_deallocate) > 0:
+            #raise CompilerPanic(f"Object marked but not deallocated: {self._to_deallocate}")
+            print(f"Object marked but not explicitly deallocated: {self._to_deallocate}")
+        if len(self._allocated) > 0:
+            #raise CompilerPanic(f"Object not explicitly deallocated: {self._allocated}")
+            print(f"Object not explicitly deallocated: {self._allocated}")
+
+    def is_allocated(self, var):
+        # TODO: also handle name reuse, location reuse, etc by using a variable unique id, not its name
+        return var.name in self._allocated
 
     def is_constant(self):
         return self.constancy is Constancy.Constant or self.in_range_expr
@@ -227,6 +240,7 @@ class Context:
             self.memory_allocator.deallocate_memory(var.pos, var.size)
 
         del self.vars[var.name]
+        self._allocated.remove(var.name)
 
     def mark_for_deallocation(self, varname):
         # for variables get deallocated anyway
@@ -287,6 +301,7 @@ class Context:
             alloca=alloca,
         )
         self.vars[name] = var
+        self._allocated.append(name)
         return var.as_ir_node()
 
     def new_variable(

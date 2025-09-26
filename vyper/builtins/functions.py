@@ -798,7 +798,7 @@ class _ECArith(BuiltinFunctionT):
         ret_t = self._return_type
 
         ret = ["seq"]
-        ret.append(make_setter(input_buf, args_tuple))
+        ret.append(make_setter(input_buf, args_tuple, context))
 
         output_buf = context.new_internal_variable(ret_t)
 
@@ -1285,7 +1285,7 @@ class RawLog(BuiltinFunctionT):
             placeholder = context.new_internal_variable(BYTES32_T)
             log_ir = [log_op, placeholder, 32] + topics
             return IRnode.from_list(
-                ["seq", make_setter(placeholder, data), ensure_eval_once("raw_log", log_ir)]
+                ["seq", make_setter(placeholder, data, context), ensure_eval_once("raw_log", log_ir)]
             )
 
         input_buf = ensure_in_memory(data, context)
@@ -2552,7 +2552,7 @@ class ABIDecode(BuiltinFunctionT):
             # pass a buffer bound to make_setter so appropriate oob
             # validation is performed
             buf_bound = add_ofst(data_ptr, data_len)
-            ret.append(make_setter(output_buf, to_decode, hi=buf_bound))
+            ret.append(make_setter(output_buf, to_decode, context, hi=buf_bound))
 
             ret.append(output_buf)
             # finalize. set the type and location for the return buffer.

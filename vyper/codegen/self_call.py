@@ -78,13 +78,13 @@ def ir_for_self_call(stmt_expr, context):
         tmp_args_buf = context.new_internal_variable(dst_tuple_t)
         copy_args.append(
             # --> args evaluate here <--
-            make_setter(tmp_args_buf, args_as_tuple)
+            make_setter(tmp_args_buf, args_as_tuple, context)
         )
 
-        copy_args.append(make_setter(args_dst, tmp_args_buf))
+        copy_args.append(make_setter(args_dst, tmp_args_buf, context))
 
     else:
-        copy_args = make_setter(args_dst, args_as_tuple)
+        copy_args = make_setter(args_dst, args_as_tuple, context)
 
     goto_op = ["goto", func_t._ir_info.internal_function_label(context.is_ctor_context)]
     # pass return buffer to subroutine

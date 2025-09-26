@@ -475,6 +475,16 @@ class IRnode:
         return ret
 
     @cached_property
+    def referenced_variables_2(self):
+        # copy of referenced_variables, but for self calls keep the actual names, not the invoked_function_ir ones
+        ret = getattr(self, "_referenced_variables", set())
+
+        for arg in self.args:
+            ret |= arg.referenced_variables
+
+        return ret
+
+    @cached_property
     def variable_writes(self):
         ret = getattr(self, "_writes", set())
 

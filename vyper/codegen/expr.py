@@ -730,7 +730,7 @@ class Expr:
                     ret.append(make_setter(tmp, arg))
                     arg = tmp
 
-                ret.append(append_dyn_array(darray, arg))
+                ret.append(append_dyn_array(darray, arg, self.context))
                 return IRnode.from_list(ret)
 
             raise CompilerPanic("unreachable!")  # pragma: nocover

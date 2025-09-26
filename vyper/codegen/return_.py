@@ -51,7 +51,7 @@ def make_return_stmt(ir_val: IRnode, stmt: Any, context: Context) -> Optional[IR
 
     if context.is_internal:
         dst = IRnode.from_list(["return_buffer"], typ=context.return_type, location=MEMORY)
-        fill_return_buffer = make_setter(dst, ir_val)
+        fill_return_buffer = make_setter(dst, ir_val, context)
         jump_to_exit += ["return_pc"]
 
         return finalize(fill_return_buffer)

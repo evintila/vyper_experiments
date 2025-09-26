@@ -76,7 +76,7 @@ def _encode_dyn_array_helper(dst, ir_node, context):
         _bufsz = dst.typ.abi_type.size_bound()
         return [
             "seq",
-            make_setter(buf, ir_node),
+            make_setter(buf, ir_node, context),
             ["set", "dyn_ofst", abi_encode(dst, buf, context, _bufsz, returns_len=True)],
         ]
 
@@ -179,7 +179,7 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
     # to be identical to the ABI encoding.
     if abi_encoding_matches_vyper(ir_node.typ):
         # NOTE: make_setter handles changes of location and encoding
-        ir_ret.append(make_setter(dst, ir_node))
+        ir_ret.append(make_setter(dst, ir_node, context))
         if returns_len:
             assert abi_t.embedded_static_size() == ir_node.typ.memory_bytes_required
             ir_ret.append(abi_t.embedded_static_size())
@@ -192,10 +192,10 @@ def abi_encode(dst, ir_node, context, bufsz, returns_len=False):
         dyn_ofst = "dyn_ofst"  # current offset in the dynamic section
 
         if ir_node.typ._is_prim_word:
-            ir_ret.append(make_setter(dst, ir_node))
+            ir_ret.append(make_setter(dst, ir_node, context))
         elif isinstance(ir_node.typ, _BytestringT):
             # TODO optimize out repeated ceil32 calculation
-            ir_ret.append(make_setter(dst, ir_node))
+            ir_ret.append(make_setter(dst, ir_node, context))
             ir_ret.append(zero_pad(dst))
         elif isinstance(ir_node.typ, DArrayT):
             ir_ret.append(_encode_dyn_array_helper(dst, ir_node, context))

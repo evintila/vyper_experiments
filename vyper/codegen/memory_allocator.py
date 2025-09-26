@@ -3,6 +3,7 @@ from typing import List
 from vyper.exceptions import CompilerPanic, MemoryAllocationException
 from vyper.utils import MemoryPositions
 
+import warnings
 
 class FreeMemory:
     __slots__ = ("position", "size")
@@ -35,6 +36,10 @@ class FreeMemory:
         self.size -= size
         return position
 
+    def overlaps(self, other) -> bool:
+        # Check if two deallocations overlap
+        return self.position + self.size > other.position and self.position < other.position + other.size
+
 
 class MemoryAllocator:
     """
@@ -58,10 +63,15 @@ class MemoryAllocator:
             The initial offset to use as the free memory pointer. Offsets
             prior to this value are considered permanently allocated.
         """
+        self._initial_start_position = start_position
         self.next_mem = start_position
         self.size_of_mem = start_position
         self.deallocated_mem: List[FreeMemory] = []
 
+    def __del__(self):
+        if self.next_mem != self._initial_start_position:
+            #raise CompilerPanic(f"Possible memory leak: next mem at {self.next_mem} (initial start {self._initial_start_position}): {self.deallocated_mem}")
+            warnings.warn(f"Possible memory leak: next mem at {self.next_mem} (initial start {self._initial_start_position}): {self.deallocated_mem}")
     # Get the next unused memory location
     def get_next_memory_position(self) -> int:
         return self.next_mem
@@ -136,8 +146,15 @@ class MemoryAllocator:
         if size % 32 != 0:
             raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
 
-        self.deallocated_mem.append(FreeMemory(position=pos, size=size))
+        deallocated_now = FreeMemory(position=pos, size=size)
+        for mem in self.deallocated_mem:
+            print(f"all deallocated_mem {mem.position}, {mem.position + mem.size}")
+        overlaps = any(deallocated_now.overlaps(o) for o in self.deallocated_mem)
+        if overlaps:
+           raise CompilerPanic(f"Double deallocation of {deallocated_now.position}, {deallocated_now.position + deallocated_now.size}")
+        self.deallocated_mem.append(deallocated_now)
         self.deallocated_mem.sort(key=lambda k: k.position)
+
 
         if not self.deallocated_mem:
             return

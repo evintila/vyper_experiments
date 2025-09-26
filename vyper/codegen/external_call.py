@@ -140,7 +140,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         )
         with payload_bound.cache_when_complex("payload_bound") as (b1, payload_bound):
             unpacker.append(
-                b1.resolve(make_setter(return_buf, buf, hi=add_ofst(buf, payload_bound)))
+                b1.resolve(make_setter(return_buf, buf, context, hi=add_ofst(buf, payload_bound)))
             )
 
     if call_kwargs.default_return_value is not None:
@@ -153,7 +153,7 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         stomp_return_buffer = ["seq"]
         if not call_kwargs.skip_contract_check:
             stomp_return_buffer.append(_extcodesize_check(contract_address))
-        stomp_return_buffer.append(make_setter(return_buf, override_value))
+        stomp_return_buffer.append(make_setter(return_buf, override_value, context))
         unpacker = ["if", ["eq", "returndatasize", 0], stomp_return_buffer, unpacker]
 
     unpacker = ["seq", unpacker, return_buf]

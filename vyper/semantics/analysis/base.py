@@ -180,6 +180,7 @@ class VarInfo:
     """
 
     typ: VyperType
+    name: str = None
     location: DataLocation = DataLocation.UNSET
     modifiability: Modifiability = Modifiability.MODIFIABLE
     is_public: bool = False

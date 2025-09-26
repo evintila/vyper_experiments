@@ -62,7 +62,7 @@ class Stmt:
         assert self.stmt.value is not None
         rhs = Expr(self.stmt.value, self.context).ir_node
 
-        return make_setter(lhs, rhs)
+        return make_setter(lhs, rhs, self.context)
 
     def parse_Assign(self):
         # Assignment (e.g. x[4] = y)
@@ -75,10 +75,10 @@ class Stmt:
             # complex - i.e., it spans multiple words. for safety, we
             # copy to a temporary buffer before copying to the destination.
             tmp = self.context.new_internal_variable(src.typ)
-            ret.append(make_setter(tmp, src))
+            ret.append(make_setter(tmp, src, self.context))
             src = tmp
 
-        ret.append(make_setter(dst, src))
+        ret.append(make_setter(dst, src, self.context))
         return IRnode.from_list(ret)
 
     def parse_If(self):
@@ -262,13 +262,13 @@ class Stmt:
         # if it's a list literal, force it to memory first
         if not iter_list.is_pointer:
             tmp_list = self.context.new_internal_variable(iter_list.typ)
-            ret.append(make_setter(tmp_list, iter_list))
+            ret.append(make_setter(tmp_list, iter_list, self.context))
             iter_list = tmp_list
 
         with iter_list.cache_when_complex("list_iter") as (b1, iter_list):
             # set up the loop variable
             e = get_element_ptr(iter_list, i, array_bounds_check=False)
-            body = ["seq", make_setter(loop_var, e), parse_body(self.stmt.body, self.context)]
+            body = ["seq", make_setter(loop_var, e, context), parse_body(self.stmt.body, self.context)]
 
             repeat_bound = iter_list.typ.count
             if isinstance(iter_list.typ, DArrayT):
