@@ -35,7 +35,7 @@ from vyper.codegen.core import (
     sar,
     shl,
     shr,
-    unwrap_location, add_evaled_once_metanode,
+    unwrap_location,
 )
 from vyper.codegen.expr import Expr
 from vyper.codegen.ir_node import Encoding, scope_multi
@@ -794,7 +794,6 @@ class _ECArith(BuiltinFunctionT):
         ret_t = self._return_type
 
         ret = ["seq"]
-        add_evaled_once_metanode(input_buf)
         ret.append(make_setter(input_buf, args_tuple))
 
         output_buf = context.new_internal_variable(ret_t)
@@ -2453,8 +2452,6 @@ class ABIDecode(BuiltinFunctionT):
             # pass a buffer bound to make_setter so appropriate oob
             # validation is performed
             buf_bound = add_ofst(data_ptr, data_len)
-            add_evaled_once_metanode(output_buf)
-
             ret.append(make_setter(output_buf, to_decode, hi=buf_bound))
 
             ret.append(output_buf)

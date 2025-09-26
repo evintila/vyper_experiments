@@ -311,7 +311,6 @@ def _dynarray_make_setter(dst, src, hi=None):
             k = IRnode.from_list(i, typ=UINT256_T)
             dst_i = get_element_ptr(dst, k, array_bounds_check=False)
             src_i = get_element_ptr(src, k, array_bounds_check=False)
-            add_evaled_once_metanode(dst_i)
             ret.append(make_setter(dst_i, src_i))
 
         # write the length word after data is copied
@@ -349,7 +348,6 @@ def _dynarray_make_setter(dst, src, hi=None):
             if should_loop:
                 i = IRnode.from_list(_freshname("copy_darray_ix"), typ=UINT256_T)
 
-                add_evaled_once_metanode(dst)
                 loop_body = make_setter(
                     get_element_ptr(dst, i, array_bounds_check=False),
                     get_element_ptr(src, i, array_bounds_check=False),
@@ -753,9 +751,43 @@ def eval_once_check(name):
 def ensure_eval_once(name, irnode):
     return ["seq", eval_once_check(_freshname(name)), irnode]
 
-def add_evaled_once_metanode(node: IRnode):
-    metanode = IRnode.from_list(ensure_eval_once("evaled", node))
-    node.set_metanode(metanode)
+def create_copy_with_eval_once_guard(node: IRnode) -> IRnode:
+    eval_once_guard = IRnode.from_list(ensure_eval_once("eval", node))
+    # keep the original node's characteristics
+    eval_once_guard.typ = node.typ
+    eval_once_guard.location = node.location
+    eval_once_guard.mutable = node.mutable
+    return eval_once_guard
+
+ops_with_side_effects = frozenset(["sload", "call", "staticcall", "delegatecall", "goto", "invoke", "log"]) # , ...
+
+def has_complex_sub_node(node: IRnode):
+    # check if this node or its sub-nodes have side effects
+    if node.value in ops_with_side_effects:
+        return True
+
+    for arg in node.args:
+        if has_complex_sub_node(arg):
+            return True
+    return False
+
+def guard_complex_subnodes(node: IRnode):
+    # return True if a guard is needed for this node
+
+    # skip seq + unique_symbol
+    if node.value == "seq": # TODO: maybe also skip "with" nodes
+        if len(node.args) > 0 and node.args[0].value == "unique_symbol":
+            return False
+
+    if node.value in ops_with_side_effects:
+        return True # side effect, guard needed
+
+    for i in range(0, len(node.args)):
+        arg = node.args[i]
+        if guard_complex_subnodes(arg):
+            # replace this arg is a guarded copy
+            node.args[i] = create_copy_with_eval_once_guard(node.args[i])
+    return False
 
 def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if ptr.location is None:  # pragma: nocover
@@ -764,16 +796,12 @@ def STORE(ptr: IRnode, val: IRnode) -> IRnode:
     if op is None:  # pragma: nocover
         raise CompilerPanic(f"unreachable {ptr.location}")
 
-    # don't use eval_once_check or ptr metanode for memory, immutables because it interferes
+    store = [op, ptr, val]
+    # don't use eval_once_check for memory, immutables because it interferes
     # with optimizer
     if ptr.location in (MEMORY, IMMUTABLES):
         store = [op, ptr, val]
         return IRnode.from_list(store)
-
-    if ptr.metanode:
-        store = [op, ptr.metanode, val]
-    else:
-        store = [op, ptr, val]
 
     return IRnode.from_list(ensure_eval_once(f"{op}_", store))
 
@@ -1059,6 +1087,11 @@ def make_setter(left, right, hi=None):
 
     if potential_overlap(left, right):
         raise CompilerPanic("overlap between src and dst!")
+
+    if has_complex_sub_node(left):
+        # individually guard each complex sub-node
+        guard_complex_subnodes(left)
+        left = create_copy_with_eval_once_guard(left) # TODO: probably not needed since the sub-nodes are guarded
 
     # we need bounds checks when decoding from memory, otherwise we can
     # get oob reads.

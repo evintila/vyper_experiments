@@ -1,6 +1,5 @@
 import copy
 import dataclasses
-import os
 
 from vyper.codegen.core import _freshname, eval_once_check, make_setter
 from vyper.codegen.ir_node import IRnode

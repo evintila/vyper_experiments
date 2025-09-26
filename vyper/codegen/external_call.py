@@ -15,7 +15,7 @@ from vyper.codegen.core import (
     make_setter,
     needs_clamp,
     unwrap_location,
-    wrap_value_for_external_return, add_evaled_once_metanode,
+    wrap_value_for_external_return,
 )
 from vyper.codegen.ir_node import Encoding, IRnode
 from vyper.evm.address_space import MEMORY
@@ -133,7 +133,6 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         return_buf = buf
     else:
         return_buf = context.new_internal_variable(wrapped_return_t)
-        add_evaled_once_metanode(return_buf)
 
         # note: make_setter does ABI decoding and clamps
         payload_bound = IRnode.from_list(
@@ -154,8 +153,6 @@ def _unpack_returndata(buf, fn_type, call_kwargs, contract_address, context, exp
         stomp_return_buffer = ["seq"]
         if not call_kwargs.skip_contract_check:
             stomp_return_buffer.append(_extcodesize_check(contract_address))
-
-        add_evaled_once_metanode(return_buf)
         stomp_return_buffer.append(make_setter(return_buf, override_value))
         unpacker = ["if", ["eq", "returndatasize", 0], stomp_return_buffer, unpacker]
 

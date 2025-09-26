@@ -1,6 +1,5 @@
 import contextlib
 import copy
-import os
 import re
 from enum import Enum, auto
 from functools import cached_property
@@ -179,8 +178,6 @@ class IRnode:
         self.passthrough_metadata = passthrough_metadata or {}
         self.func_ir = None
         self.common_ir = None
-        self.metanode = None
-        self.patch_disabled = os.getenv("DISABLE_PATCH")
 
         assert self.value is not None, "None is not allowed as IRnode value"
 
@@ -364,10 +361,6 @@ class IRnode:
         ret.__dict__ = self.__dict__.copy()
         ret.args = [copy.deepcopy(arg) for arg in ret.args]
         return ret
-
-    def set_metanode(self, metanode):
-        if not self.patch_disabled:
-            self.metanode = metanode
 
     # TODO would be nice to rename to `gas_estimate` or `gas_bound`
     @property
