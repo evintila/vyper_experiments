@@ -147,8 +147,6 @@ class MemoryAllocator:
             raise CompilerPanic("Memory misaligment, only multiples of 32 supported.")
 
         deallocated_now = FreeMemory(position=pos, size=size)
-        for mem in self.deallocated_mem:
-            print(f"all deallocated_mem {mem.position}, {mem.position + mem.size}")
         overlaps = any(deallocated_now.overlaps(o) for o in self.deallocated_mem)
         if overlaps:
            raise CompilerPanic(f"Double deallocation of {deallocated_now.position}, {deallocated_now.position + deallocated_now.size}")
